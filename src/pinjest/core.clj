@@ -104,6 +104,4 @@
          (partition-all 500)
          (map-indexed (fn [i pins] [i (pins-html pins npages)]))
          (map (fn [[i htm]] (spit (str "pins-" i ".html") htm)))
-         dorun)
-    (clojure.java.shell/sh "open" "pins-0.html")
-    (System/exit 0)))
+         dorun)))
