@@ -9,7 +9,8 @@ standalone or in the REPL.
 
 # Running
 
-After setting `PINTEREST_TOKEN` as above,
+After setting `PINTEREST_TOKEN` as above, and
+[installing Leiningen](http://leiningen.org/) and Java,
 
     lein uberjar
     java -jar target/pinjest.jar
