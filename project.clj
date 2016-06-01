@@ -2,6 +2,9 @@
   :description "Scratch pad for experiments w/ Pinterest API."
   :url "http://github.com/eigenhombre/pinjest"
   :license {:name "MIT"}
+  :main pinjest.core
+  :profiles {:uberjar {:aot :all}}
+  :uberjar-name "pinjest.jar"
   :dependencies [[org.clojure/clojure "1.7.0"]
                  [clj-http "2.1.0"]
                  [cheshire "5.5.0"]

@@ -1,8 +1,10 @@
 (ns pinjest.core
+  (:gen-class)
   (:require [cemerick.url :refer [url-encode]]
-            [environ.core :refer [env]]
             [cheshire.core :refer [parse-string]]
-            [clj-http.client :refer [get]]
+            [clj-http.client]
+            [clojure.java.shell]
+            [environ.core :refer [env]]
             [hiccup.core :refer [html]]))
 
 
@@ -26,13 +28,15 @@
   ([url]
    (lazy-seq
     (let [result (->> url
-                      get
+                      clj-http.client/get
                       :body
                       parse-string
                       clojure.walk/keywordize-keys)
           next-url (-> result :page :next)]
+      (println (format "Found %d pins." (count (:data result))))
       (concat (:data result)
               (when next-url
+                (println "Next pin set:" next-url)
                 (pin-seq next-url)))))))
 
 
@@ -45,10 +49,12 @@
   (let [img-url (-> pin :image :original :url)
         filen (local-image-file-name pin)]
     (when-not (.exists (clojure.java.io/as-file filen))
+      (println "Caching" filen "...")
       (clojure.java.io/make-parents filen)
       (with-open [o (clojure.java.io/output-stream filen)]
-        (.write o (-> img-url (get {:as :byte-array}) :body))))))
-
+        (.write o (-> img-url
+                      (clj-http.client/get {:as :byte-array})
+                      :body))))))
 
 
 (defn pin-html [pin]
@@ -67,9 +73,19 @@
   )
 
 
-(defn pins-html [pins]
-  (html [:div (map pin-html pins)
-         [:p {:style "clear: both"}]]))
+(defn pages-html [npages]
+  [:div (for [i (range npages)]
+          [:span
+           [:a {:href (str "pins-" i ".html")}
+            "Page " (inc i)]
+           "&nbsp;"])])
+
+
+(defn pins-html [pins npages]
+  (html (pages-html npages)
+        [:div (map pin-html pins)
+         [:p {:style "clear: both"}]]
+        (pages-html npages)))
 
 
 (def aspect-ratio (comp double
@@ -79,18 +95,15 @@
                         :image))
 
 
-(comment
-  (def pins (pin-seq))
-
-  (first pins)
-  ;;=>
-  {:counts {:likes 0, :comments 0, :repins 0}, :creator {:url "https://www.pinterest.com/eigenhombre/", :first_name "John", :last_name "Jacobsen", :id "311241161656265419"}, :color "#cec6ae", :original_link "http://io9.com/could-this-be-the-most-radiant-collection-of-dune-art-e-1693993134", :note " ", :link "https://www.pinterest.com/r/pin/311241024228988307/4779055074072594921/7051bbb4ef26efb0372671357a0248133c3a7622fe26540a118ca9b155cb7774", :id "311241024228988307", :attribution nil, :url "https://www.pinterest.com/pin/311241024228988307/", :image {:original {:url "https://s-media-cache-ak0.pinimg.com/originals/d7/e7/64/d7e7640ee0f171a45196c24fa45b1a8b.jpg", :width 636, :height 911}}, :media {:type "image"}, :metadata {:article {:published_at nil, :description "The Folio Society is doing a gorgeous new edition of Frank Herbert's Dune, and we were excited to show you the front cover a while back. But just wait until you get a load of the interior art, also created by artist extraordinaire Sam Weber. [Warning: One picture might be NSFW.]", :name "Could This Be The Most Radiant Collection Of Dune Art Ever Assembled?", :authors []}, :link {:locale "en", :title "Could This Be The Most Radiant Collection Of Dune Art Ever Assembled?", :site_name "io9", :description "The Folio Society is doing a gorgeous new edition of Frank Herbert's Dune, and we were excited to show you the front cover a while back. But just wait until you get a load of the interior art, also created by artist extraordinaire Sam Weber. [Warning: One picture might be NSFW.]", :favicon "https://s-media-cache-ak0.pinimg.com/favicons/b8c4c7d8d6d681a3747cf4e818450d52a722437ea36deaf7ab2c25c8.png?4665c5a44711691e9de02e62e2aae042"}}, :created_at "2016-03-27T17:04:47", :board {:url "https://www.pinterest.com/eigenhombre/cover-art-illustration/", :id "311241092937050525", :name "Cover Art / Illustration"}}
-  
-
-  (->> pins
-       (sort-by aspect-ratio)
-       reverse
-       pins-html
-       (spit "index.html"))
-
-  (clojure.java.shell/sh "open" "index.html"))
+(defn -main []
+  (let [pins (pin-seq)
+        npages (->> pins (partition-all 500) count)]
+    (->> pins
+         (sort-by aspect-ratio)
+         reverse
+         (partition-all 500)
+         (map-indexed (fn [i pins] [i (pins-html pins npages)]))
+         (map (fn [[i htm]] (spit (str "pins-" i ".html") htm)))
+         dorun)
+    (clojure.java.shell/sh "open" "pins-0.html")
+    (System/exit 0)))
