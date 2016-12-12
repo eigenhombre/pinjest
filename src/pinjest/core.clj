@@ -33,21 +33,29 @@
                       parse-string
                       clojure.walk/keywordize-keys)
           next-url (-> result :page :next)]
-      (println (format "Found %d pins." (count (:data result))))
+      (print ".")
+      (flush)
       (concat (:data result)
               (when next-url
-                (println "Next pin set:" next-url)
                 (pin-seq next-url)))))))
 
 
 
-(defn ^:private local-image-file-name [pin]
-  (str "pins/" (:id pin) ".jpg"))
+(defn ^:private local-image-file-name [pin ext]
+  (str "pins/" (:id pin) ext))
+
+
+(defn write-full-pin-file! [pin]
+  (let [filen (local-image-file-name pin ".html")]
+    (spit filen
+          (html [:div [:a {:href (:url pin)}
+                       [:img {:src (str (:id pin) ".jpg")}]]]))))
 
 
 (defn write-image-file-for-pin! [pin]
   (let [img-url (-> pin :image :original :url)
-        filen (local-image-file-name pin)]
+        filen (local-image-file-name pin ".jpg")]
+    (write-full-pin-file! pin)
     (when-not (.exists (clojure.java.io/as-file filen))
       (println "Caching" filen "...")
       (clojure.java.io/make-parents filen)
@@ -59,8 +67,8 @@
 
 (defn pin-html [pin]
   (write-image-file-for-pin! pin)
-  [:div [:a {:href (:url pin)}
-         [:img {:src (local-image-file-name pin)
+  [:div [:a {:href (local-image-file-name pin ".html")}
+         [:img {:src (local-image-file-name pin ".jpg")
                 :style "float: left;"
                 :width 250}]]
    ;; [:a {:href (:url pin)} [:strong (:note pin)]]
@@ -96,6 +104,8 @@
 
 
 (defn -main []
+  (print "Fetching pins...")
+  (flush)
   (let [pins (pin-seq)
         npages (->> pins (partition-all 500) count)]
     (->> pins
@@ -104,4 +114,5 @@
          (partition-all 500)
          (map-indexed (fn [i pins] [i (pins-html pins npages)]))
          (map (fn [[i htm]] (spit (str "pins-" i ".html") htm)))
-         dorun)))
+         dorun)
+    (println "\n\nDone.")))

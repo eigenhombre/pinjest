@@ -7,7 +7,7 @@
 /checkouts
 /classes
 /target
-index.html
+*.html
 pins/
 pom.xml
 pom.xml.asc
