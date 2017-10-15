@@ -49,7 +49,8 @@
   (let [filen (local-image-file-name pin ".html")]
     (spit filen
           (html [:div [:a {:href (:url pin)}
-                       [:img {:src (str (:id pin) ".jpg")}]]]))))
+                       [:img {:src (str (:id pin) ".jpg")
+                              :style "max-width: 100%"}]]]))))
 
 
 (defn write-image-file-for-pin! [pin]
@@ -109,8 +110,9 @@
   (let [pins (pin-seq)
         npages (->> pins (partition-all 500) count)]
     (->> pins
-         (sort-by aspect-ratio)
-         reverse
+         (sort-by :created-at)
+         (partition-all 30)
+         (mapcat (comp reverse (partial sort-by aspect-ratio)))
          (partition-all 500)
          (map-indexed (fn [i pins] [i (pins-html pins npages)]))
          (map (fn [[i htm]] (spit (str "pins-" i ".html") htm)))
